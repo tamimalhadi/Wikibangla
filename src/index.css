@@ -1,0 +1,42 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  body {
+    @apply font-sans text-gray-900 antialiased;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-gray-50;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-gray-200 rounded-full hover:bg-gray-300 transition-colors;
+}
+
+/* Markdown Styles */
+.prose {
+  @apply text-gray-700;
+}
+
+.prose h1 { @apply text-4xl font-black mb-8 mt-12; }
+.prose h2 { @apply text-3xl font-black mb-6 mt-10; }
+.prose h3 { @apply text-2xl font-bold mb-4 mt-8; }
+.prose p { @apply mb-6 leading-relaxed; }
+.prose ul { @apply list-disc pl-6 mb-6 space-y-2; }
+.prose ol { @apply list-decimal pl-6 mb-6 space-y-2; }
+.prose blockquote { @apply border-l-4 border-blue-500 pl-6 italic text-gray-600 my-8; }
+.prose code { @apply bg-gray-100 px-1.5 py-0.5 rounded text-sm font-mono text-blue-600; }
+.prose pre { @apply bg-gray-900 text-gray-100 p-6 rounded-2xl overflow-x-auto my-8; }
+.prose a { @apply text-blue-600 font-bold hover:underline; }
+.prose img { @apply max-w-full h-auto my-10; }

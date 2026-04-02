@@ -1,0 +1,125 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: articles
+    // Document ID: auto-generated
+    // Fields:
+    //   - title: string (required, 1-200 chars)
+    //   - content: string (required, 1-50000 chars)
+    //   - authorId: string (required, UID)
+    //   - authorName: string (required, 1-100 chars)
+    //   - createdAt: timestamp (required)
+    //   - updatedAt: timestamp (required)
+    //   - categories: list (optional, max 10 items)
+    //   - language: string (required, 'bn' or 'en')
+    //   - views: number (required, >= 0)
+    //
+    // Collection: users
+    // Document ID: userId (UID)
+    // Fields:
+    //   - uid: string (required, UID)
+    //   - displayName: string (required, 1-100 chars)
+    //   - email: string (required, email format)
+    //   - role: string (required, 'admin', 'editor', 'user')
+    //   - createdAt: timestamp (required)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "tamimalhadi2007@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isEditor() {
+      return isAuthenticated() && 
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'editor']);
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidArticle(data) {
+      return hasRequiredFields(['title', 'content', 'authorId', 'authorName', 'createdAt', 'updatedAt', 'language', 'views']) &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 200 &&
+             data.content is string && data.content.size() >= 1 && data.content.size() <= 50000 &&
+             data.authorId is string && data.authorId == request.auth.uid &&
+             data.authorName is string && data.authorName.size() <= 100 &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp &&
+             data.language in ['bn', 'en'] &&
+             data.views is number && data.views >= 0 &&
+             (!('categories' in data) || (data.categories is list && data.categories.size() <= 10));
+    }
+
+    function isValidUser(data) {
+      return hasRequiredFields(['uid', 'displayName', 'email', 'role', 'createdAt']) &&
+             data.uid is string && data.uid == request.auth.uid &&
+             data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 100 &&
+             data.email is string && isValidEmail(data.email) &&
+             data.role in ['admin', 'editor', 'user'] &&
+             data.createdAt is timestamp;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data) && 
+                      (request.resource.data.role == 'user' || isAdmin());
+      allow update: if isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data) && 
+                      (request.resource.data.role == resource.data.role || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    match /articles/{articleId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && isValidArticle(request.resource.data);
+      allow update: if isAuthenticated() && 
+                      (
+                        // Author can update their own article
+                        (resource.data.authorId == request.auth.uid && isValidArticle(request.resource.data)) ||
+                        // Editors can update any article
+                        (isEditor() && isValidArticle(request.resource.data)) ||
+                        // Anyone can increment views (atomic update)
+                        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views']) && 
+                         request.resource.data.views == resource.data.views + 1)
+                      );
+      allow delete: if isAuthenticated() && (resource.data.authorId == request.auth.uid || isEditor());
+    }
+
+    match /test/connection {
+      allow read: if true;
+    }
+  }
+}
